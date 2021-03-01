@@ -1,0 +1,1993 @@
+{
+  "Conditions": {
+    "CreateRoboMakerResources": {
+      "Fn::Equals": [
+        {
+          "Ref": "InRoboMaker"
+        },
+        "true"
+      ]
+    }
+  },
+  "Description": "Stack created to run AWS RoboMaker Person Detection sample application",
+  "Parameters": {
+    "InRoboMaker": {
+      "Type": "String",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Default": "true",
+      "Description": "If true, will launch RoboMaker application"
+    },
+    "SourceBucket": {
+      "Type": "String",
+      "Description": "Robot and Simulation application bundle source bucket"
+    },
+    "SimulationSoftwareSuiteVersion": {
+      "Type": "String",
+      "Default": "7",
+      "Description": "The simulation software version for launching simulation application"
+    },
+    "RobotSoftwareSuiteVersion": {
+      "Type": "String",
+      "Default": "Kinetic",
+      "Description": "ROS distribution"
+    },
+    "RoboMakerEndpoint": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Robomaker API endpoint (leave blank if using prod APIs)"
+    },
+    "AWSServiceName": {
+      "Type": "CommaDelimitedList",
+      "Default": "robomaker.amazonaws.com",
+      "Description": "Robomaker AWS Service name (leave blank if using prod APIs)"
+    },
+    "SimulationJobRoleServiceName": {
+      "Type": "CommaDelimitedList",
+      "Default": "robomaker.amazonaws.com",
+      "Description": "Robomaker AWS simulation assume role (leave blank if using prod APIs)"
+    },
+    "RoboMakerActionPermission": {
+      "Type": "String",
+      "Default": "robomaker",
+      "Description": "Robomaker AWS Robomaker action permission (leave blank if using prod APIs)"
+    },
+    "RobotAppSourceKey": {
+      "Type": "String",
+      "Description": "Robot application bundle object key"
+    },
+    "SimAppSourceKey": {
+      "Type": "String",
+      "Description": "Simulation application bundle object key"
+    },
+    "RobotAppDestinationKey": {
+      "Type": "String",
+      "Default": "person-detection-robot.tar",
+      "Description": "Destination robot application s3key"
+    },
+    "SimAppDestinationKey": {
+      "Type": "String",
+      "Default": "person-detection-simulation.tar",
+      "Description": "Destination simulation application s3key"
+    },
+    "RobotApplicationLaunchFile": {
+      "Type": "String",
+      "Default": "person_detection.launch",
+      "Description": "Robot application launch file"
+    },
+    "RobotApplicationPackageName": {
+      "Type": "String",
+      "Default": "person_detection_robot",
+      "Description": "Robot application package name"
+    },
+    "SimulationApplicationLaunchFile": {
+      "Type": "String",
+      "Default": "small_house_turtlebot_navigation.launch",
+      "Description": "Simulation application launch file"
+    },
+    "SimulationApplicationPackageName": {
+      "Type": "String",
+      "Default": "person_detection_simulation",
+      "Description": "Simulation application package name"
+    },
+    "LambdaFunctionS3Bucket": {
+      "Type": "String",
+      "Description": "Resource generation Lambda function bucket"
+    },
+    "LambdaFunctionS3Key": {
+      "Type": "String",
+      "Description": "Resource generation Lambda function  object key"
+    },
+    "ClientToken": {
+      "Type": "String",
+      "Default": "1",
+      "Description": "Random number allows to run Update on the template"
+    },
+    "ImageSourceBucket": {
+      "Type": "String",
+      "Description": "Source bucket for sample assets such as photos"
+    },
+    "ImageSourceKeyPrefix": {
+      "Type": "String",
+      "Description": "All files with this prefix will be copied into the Bundle bucket"
+    },
+    "ImageDestinationKeyPrefix": {
+      "Type": "String",
+      "Default": "photos/",
+      "Description": "Image files will be copied into the destination bucket with this prefix"
+    },
+    "CollectionIdPrefix": {
+      "Type": "String",
+      "Default": "roboMakerSampleAppPersonDetectionCollection",
+      "Description": "Collection Id prefix for Rekognition face collection"
+    },
+    "KinesisVideoStreamName": {
+      "Type": "String",
+      "Default": "RoboMakerPersonDetectionVideoStream",
+      "Description": "The name of the incoming Amazon Kinesis video stream. This must match the \"stream_name\" given in the config/kvs_config.yaml file."
+    },
+    "BundleConfigKinesisStreamName": {
+      "Type": "String",
+      "Default": "AmazonRekognitionPersonDetectionStream",
+      "Description": "This must match the \"rekognition_data_stream\" given in the config/kvs_config.yaml file and start with AmazonRekognition"
+    },
+    "RekognitionStreamProcessorNamePrefix": {
+      "Type": "String",
+      "Default": "personDetectionStreamProcessor",
+      "Description": "The name of the Amazon Rekognition Stream Processor"
+    },
+    "VpcCidrBlock": {
+      "Type": "String",
+      "Default": "10.0.0.0/16",
+      "Description": "CIDR block for VPC. Should be one of 10.0.0.0, 172.16.0.0, 192.168.0.0"
+    },
+    "SubnetMask": {
+      "Type": "String",
+      "Default": "24",
+      "Description": "Mask for subnets"
+    },
+    "TurtlebotModel": {
+      "Type": "String",
+      "Default": "waffle_pi",
+      "Description": "The model of turtlebot [burger, waffle, waffle_pi]"
+    },
+    "LaunchId": {
+      "Type": "String",
+      "Default": "default",
+      "Description": "Launch Id used as a suffix for resources"
+    }
+  },
+  "Resources": {
+    "BundlesBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain"
+    },
+    "RobotApplicationBundle": {
+      "Condition": "CreateRoboMakerResources",
+      "DependsOn": [
+        "LambdaFunction"
+      ],
+      "Properties": {
+        "ClientToken": {
+          "Ref": "ClientToken"
+        },
+        "DestinationBucket": {
+          "Ref": "BundlesBucket"
+        },
+        "DestinationKey": {
+          "Ref": "RobotAppDestinationKey"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "SourceBucket": {
+          "Ref": "SourceBucket"
+        },
+        "SourceKey": {
+          "Ref": "RobotAppSourceKey"
+        },
+        "TaskName": "Bundle"
+      },
+      "Type": "Custom::RobotApplicationBundle"
+    },
+    "RoboMakerRobotApplication": {
+      "Condition": "CreateRoboMakerResources",
+      "DependsOn": [
+        "RobotApplicationBundle"
+      ],
+      "Properties": {
+        "EndPoint": {
+          "Ref": "RoboMakerEndpoint"
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "SampleApplicationName": "PersonDetection",
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "Stage": {
+          "Ref": "RoboMakerActionPermission"
+        },
+        "TaskName": "RoboMakerRobotApplication",
+        "X86Bucket": {
+          "Ref": "BundlesBucket"
+        },
+        "X86Key": {
+          "Ref": "RobotAppDestinationKey"
+        }
+      },
+      "Type": "Custom::RoboMakerRobotApplication"
+    },
+    "SimulationApplicationBundle": {
+      "Condition": "CreateRoboMakerResources",
+      "DependsOn": [
+        "LambdaFunction"
+      ],
+      "Properties": {
+        "ClientToken": {
+          "Ref": "ClientToken"
+        },
+        "DestinationBucket": {
+          "Ref": "BundlesBucket"
+        },
+        "DestinationKey": {
+          "Ref": "SimAppDestinationKey"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "SourceBucket": {
+          "Ref": "SourceBucket"
+        },
+        "SourceKey": {
+          "Ref": "SimAppSourceKey"
+        },
+        "TaskName": "Bundle"
+      },
+      "Type": "Custom::SimulationApplicationBundle"
+    },
+    "RoboMakerSimulationApplication": {
+      "Condition": "CreateRoboMakerResources",
+      "DependsOn": [
+        "SimulationApplicationBundle"
+      ],
+      "Properties": {
+        "EndPoint": {
+          "Ref": "RoboMakerEndpoint"
+        },
+        "GazeboVersion": {
+          "Ref": "SimulationSoftwareSuiteVersion"
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "RosDistro": {
+          "Ref": "RobotSoftwareSuiteVersion"
+        },
+        "SampleApplicationName": "PersonDetection",
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "Stage": {
+          "Ref": "RoboMakerActionPermission"
+        },
+        "TaskName": "RoboMakerSimulationApplication",
+        "X86Bucket": {
+          "Ref": "BundlesBucket"
+        },
+        "X86Key": {
+          "Ref": "SimAppDestinationKey"
+        }
+      },
+      "Type": "Custom::RoboMakerSimulationApplication"
+    },
+    "SimulationJob": {
+      "Condition": "CreateRoboMakerResources",
+      "DependsOn": [
+        "SimulationApplicationBundle"
+      ],
+      "Properties": {
+        "ClientToken": {
+          "Ref": "ClientToken"
+        },
+        "EndPoint": {
+          "Ref": "RoboMakerEndpoint"
+        },
+        "IAMRole": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":role/",
+              {
+                "Ref": "SimulationJobRole"
+              }
+            ]
+          ]
+        },
+        "OutputBucket": {
+          "Ref": "BundlesBucket"
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "RobotApplication": {
+          "Ref": "RoboMakerRobotApplication"
+        },
+        "RobotApplicationEnvironmentVariables": {
+          "LAUNCH_ID": {
+            "Ref": "LaunchId"
+          },
+          "ROS_AWS_REGION": {
+            "Ref": "AWS::Region"
+          }
+        },
+        "RobotApplicationLaunchFile": {
+          "Ref": "RobotApplicationLaunchFile"
+        },
+        "RobotApplicationPackageName": {
+          "Ref": "RobotApplicationPackageName"
+        },
+        "SampleApplicationName": "PersonDetection",
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "SimulationApplication": {
+          "Fn::GetAtt": [
+            "RoboMakerSimulationApplication",
+            "Data"
+          ]
+        },
+        "SimulationApplicationEnvironmentVariables": {
+          "LAUNCH_ID": {
+            "Ref": "LaunchId"
+          },
+          "ROS_AWS_REGION": {
+            "Ref": "AWS::Region"
+          },
+          "TURTLEBOT3_MODEL": {
+            "Ref": "TurtlebotModel"
+          }
+        },
+        "SimulationApplicationLaunchFile": {
+          "Ref": "SimulationApplicationLaunchFile"
+        },
+        "SimulationApplicationPackageName": {
+          "Ref": "SimulationApplicationPackageName"
+        },
+        "Stage": {
+          "Ref": "RoboMakerActionPermission"
+        },
+        "TaskName": "RoboMakerSimulationJob",
+        "VPCConfig": {
+          "Fn::GetAtt": [
+            "VPCConfig",
+            "Data"
+          ]
+        }
+      },
+      "Type": "Custom::SimulationJob"
+    },
+    "LambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "LambdaFunctionS3Bucket"
+          },
+          "S3Key": {
+            "Ref": "LambdaFunctionS3Key"
+          }
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs8.10",
+        "Timeout": 400
+      }
+    },
+    "LambdaExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "s3:ListBucket",
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:s3:::",
+                          {
+                            "Ref": "BundlesBucket"
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "iam:PassRole"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "SimulationJobRole",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:GetObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:s3:::",
+                          {
+                            "Ref": "SourceBucket"
+                          },
+                          "/",
+                          {
+                            "Ref": "SimAppSourceKey"
+                          }
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:s3:::",
+                          {
+                            "Ref": "SourceBucket"
+                          },
+                          "/",
+                          {
+                            "Ref": "LambdaFunctionS3Key"
+                          }
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "BundlesBucket",
+                              "Arn"
+                            ]
+                          },
+                          "/",
+                          {
+                            "Ref": "SimAppDestinationKey"
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "BundlesBucket",
+                              "Arn"
+                            ]
+                          },
+                          "/",
+                          {
+                            "Ref": "SimAppDestinationKey"
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Ref": "RoboMakerActionPermission"
+                          },
+                          ":*"
+                        ]
+                      ]
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": [
+                    "ec2:AssociateRouteTable",
+                    "ec2:AttachInternetGateway",
+                    "ec2:CreateInternetGateway",
+                    "ec2:CreateSubnet",
+                    "ec2:CreateVpc",
+                    "ec2:CreateTags",
+                    "ec2:CreateRoute",
+                    "ec2:CreateRouteTable",
+                    "ec2:CreateSecurityGroup",
+                    "ec2:DeleteSubnet",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeVpcs"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        ":",
+                        [
+                          "arn:aws:logs",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          "log-group",
+                          "/aws/lambda/*",
+                          "*"
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": "iam:CreateServiceLinkedRole",
+                  "Condition": {
+                    "StringEquals": {
+                      "iam:AWSServiceName": {
+                        "Ref": "AWSServiceName"
+                      }
+                    }
+                  },
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": [
+                    "cloudformation:DescribeStacks"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Ref": "AWS::StackId"
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:GetObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:s3:::",
+                          {
+                            "Ref": "SourceBucket"
+                          },
+                          "/",
+                          {
+                            "Ref": "RobotAppSourceKey"
+                          }
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "BundlesBucket",
+                              "Arn"
+                            ]
+                          },
+                          "/",
+                          {
+                            "Ref": "RobotAppDestinationKey"
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "BundlesBucket",
+                              "Arn"
+                            ]
+                          },
+                          "/",
+                          {
+                            "Ref": "RobotAppDestinationKey"
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "iam:PassRole"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "RekognitionStreamProcessorRole",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "cloudformation:DescribeStacks"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Ref": "AWS::StackId"
+                  }
+                },
+                {
+                  "Action": [
+                    "kinesis:DeleteStream",
+                    "kinesis:DescribeStream",
+                    "kinesis:CreateStream"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:kinesis",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "stream/",
+                              {
+                                "Ref": "BundleConfigKinesisStreamName"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "kinesisvideo:CreateStream"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": [
+                    "kinesisvideo:DescribeStream",
+                    "kinesisvideo:DeleteStream"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:kinesisvideo",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "stream/",
+                              {
+                                "Ref": "KinesisVideoStreamName"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "rekognition:CreateCollection",
+                    "rekognition:DeleteCollection",
+                    "rekognition:IndexFaces"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:rekognition",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "collection/",
+                              {
+                                "Ref": "CollectionIdPrefix"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "rekognition:CreateStreamProcessor"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        ":",
+                        [
+                          "arn:aws:rekognition",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          {
+                            "Fn::Join": [
+                              "",
+                              [
+                                "streamprocessor/",
+                                {
+                                  "Ref": "RekognitionStreamProcessorNamePrefix"
+                                },
+                                "*"
+                              ]
+                            ]
+                          }
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        ":",
+                        [
+                          "arn:aws:rekognition",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          {
+                            "Fn::Join": [
+                              "",
+                              [
+                                "collection/",
+                                {
+                                  "Ref": "CollectionIdPrefix"
+                                },
+                                "*"
+                              ]
+                            ]
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "rekognition:DeleteStreamProcessor",
+                    "rekognition:StartStreamProcessor",
+                    "rekognition:StopStreamProcessor"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:rekognition",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "streamprocessor/",
+                              {
+                                "Ref": "RekognitionStreamProcessorNamePrefix"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:ListBucket"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:s3:::",
+                        {
+                          "Ref": "ImageSourceBucket"
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:GetObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:s3:::",
+                        {
+                          "Ref": "ImageSourceBucket"
+                        },
+                        "/",
+                        {
+                          "Ref": "ImageSourceKeyPrefix"
+                        },
+                        "*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        {
+                          "Fn::GetAtt": [
+                            "BundlesBucket",
+                            "Arn"
+                          ]
+                        },
+                        "/",
+                        {
+                          "Ref": "ImageDestinationKeyPrefix"
+                        },
+                        "*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "s3:PutBucketNotification"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:s3:::",
+                        {
+                          "Ref": "BundlesBucket"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              ]
+            },
+            "PolicyName": {
+              "Fn::Join": [
+                "",
+                [
+                  "CustomResourceLambdaPolicy",
+                  {
+                    "Ref": "AWS::StackName"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SimulationJobRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": {
+            "Fn::If": [
+              "CreateRoboMakerResources",
+              [
+                {
+                  "Action": [
+                    "sts:AssumeRole"
+                  ],
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": {
+                      "Ref": "SimulationJobRoleServiceName"
+                    }
+                  }
+                }
+              ],
+              [
+                {
+                  "Action": [
+                    "sts:AssumeRole"
+                  ],
+                  "Effect": "Allow",
+                  "Principal": {
+                    "AWS": {
+                      "Fn::Join": [
+                        ":",
+                        [
+                          "arn:aws:iam:",
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          "root"
+                        ]
+                      ]
+                    }
+                  }
+                }
+              ]
+            ]
+          }
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": {
+                "Fn::If": [
+                  "CreateRoboMakerResources",
+                  [
+                    {
+                      "Action": "s3:ListBucket",
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:aws:s3:::",
+                              {
+                                "Ref": "BundlesBucket"
+                              }
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "s3:Get*",
+                        "s3:List*"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:aws:s3:::",
+                              {
+                                "Ref": "BundlesBucket"
+                              },
+                              "/*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": "s3:Put*",
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:aws:s3:::",
+                              {
+                                "Ref": "BundlesBucket"
+                              },
+                              "/*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents",
+                        "logs:DescribeLogStreams"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:logs",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              "log-group:/aws/robomaker/SimulationJobs*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "ec2:CreateNetworkInterfacePermission"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:ec2",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "ec2:AssociateRouteTable",
+                        "ec2:CreateSubnet",
+                        "ec2:DeleteNetworkInterface",
+                        "ec2:DeleteSubnet",
+                        "ec2:DescribeNetworkInterfaces",
+                        "ec2:DescribeSecurityGroups",
+                        "ec2:DescribeSubnets",
+                        "ec2:DescribeVpcs"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": "*"
+                    },
+                    {
+                      "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:logs",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "log-group:robomaker_person_detection_example-",
+                                    {
+                                      "Ref": "LaunchId"
+                                    }
+                                  ]
+                                ]
+                              },
+                              "*",
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "cloudwatch:PutMetricData",
+                        "polly:SynthesizeSpeech"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": "*"
+                    },
+                    {
+                      "Action": [
+                        "kinesisvideo:DescribeStream",
+                        "kinesisvideo:GetDataEndpoint",
+                        "kinesisvideo:PutMedia",
+                        "kinesisvideo:TagStream"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:kinesisvideo",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "stream/",
+                                    {
+                                      "Ref": "KinesisVideoStreamName"
+                                    },
+                                    "*"
+                                  ]
+                                ]
+                              }
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "kinesis:GetRecords",
+                        "kinesis:GetShardIterator",
+                        "kinesis:ListShards"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:kinesis",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "stream/",
+                                    {
+                                      "Ref": "BundleConfigKinesisStreamName"
+                                    },
+                                    "*"
+                                  ]
+                                ]
+                              }
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:logs",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "log-group:robomaker_person_detection_example-",
+                                    {
+                                      "Ref": "LaunchId"
+                                    }
+                                  ]
+                                ]
+                              },
+                              "*",
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "cloudwatch:PutMetricData",
+                        "polly:SynthesizeSpeech"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": "*"
+                    },
+                    {
+                      "Action": [
+                        "kinesisvideo:DescribeStream",
+                        "kinesisvideo:GetDataEndpoint",
+                        "kinesisvideo:PutMedia",
+                        "kinesisvideo:TagStream"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:kinesisvideo",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "stream/",
+                                    {
+                                      "Ref": "KinesisVideoStreamName"
+                                    },
+                                    "*"
+                                  ]
+                                ]
+                              }
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Action": [
+                        "kinesis:GetRecords",
+                        "kinesis:GetShardIterator",
+                        "kinesis:ListShards"
+                      ],
+                      "Effect": "Allow",
+                      "Resource": [
+                        {
+                          "Fn::Join": [
+                            ":",
+                            [
+                              "arn:aws:kinesis",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              {
+                                "Fn::Join": [
+                                  "",
+                                  [
+                                    "stream/",
+                                    {
+                                      "Ref": "BundleConfigKinesisStreamName"
+                                    },
+                                    "*"
+                                  ]
+                                ]
+                              }
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "PolicyName": {
+              "Fn::Join": [
+                "",
+                [
+                  "SimulationJobRole",
+                  {
+                    "Ref": "AWS::StackName"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "NotificationConfig": {
+      "DependsOn": [
+        "IndexFaceLambdaPermission"
+      ],
+      "Properties": {
+        "BucketArn": {
+          "Fn::GetAtt": [
+            "BundlesBucket",
+            "Arn"
+          ]
+        },
+        "Events": [
+          "s3:ObjectCreated:*"
+        ],
+        "LambdaArn": {
+          "Fn::GetAtt": [
+            "IndexFaceLambda",
+            "Arn"
+          ]
+        },
+        "Prefix": {
+          "Ref": "ImageDestinationKeyPrefix"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "TaskName": "NotificationConfig"
+      },
+      "Type": "Custom::NotificationConfig"
+    },
+    "KinesisDataStream": {
+      "Properties": {
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "ShardCount": 1,
+        "StreamName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "BundleConfigKinesisStreamName"
+              },
+              {
+                "Ref": "LaunchId"
+              }
+            ]
+          ]
+        },
+        "TaskName": "KinesisStream"
+      },
+      "Type": "Custom::KinesisDataStream"
+    },
+    "KinesisVideoStream": {
+      "Properties": {
+        "DataRetentionInHours": 1,
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "StreamName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "KinesisVideoStreamName"
+              },
+              {
+                "Ref": "LaunchId"
+              }
+            ]
+          ]
+        },
+        "TaskName": "KinesisVideoStream"
+      },
+      "Type": "Custom::KinesisVideoStream"
+    },
+    "RekognitionCollection": {
+      "Properties": {
+        "CollectionIdPrefix": {
+          "Ref": "CollectionIdPrefix"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "TaskName": "RekognitionCollection"
+      },
+      "Type": "Custom::RekognitionCollection"
+    },
+    "RekognitionStreamProcessorRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "rekognition.amazonaws.com"
+                ]
+              }
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonRekognitionServiceRole"
+        ]
+      }
+    },
+    "RekognitionStreamProcessor": {
+      "DependsOn": [
+        "KinesisVideoStream"
+      ],
+      "Properties": {
+        "CollectionId": {
+          "Fn::GetAtt": [
+            "RekognitionCollection",
+            "Data"
+          ]
+        },
+        "InputVideoStreamArn": {
+          "Fn::GetAtt": [
+            "KinesisVideoStream",
+            "Data"
+          ]
+        },
+        "NamePrefix": {
+          "Ref": "RekognitionStreamProcessorNamePrefix"
+        },
+        "OutputDataStreamArn": {
+          "Fn::GetAtt": [
+            "KinesisDataStream",
+            "Data"
+          ]
+        },
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "RekognitionStreamProcessorRole",
+            "Arn"
+          ]
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "TaskName": "RekognitionStreamProcesor"
+      },
+      "Type": "Custom::RekognitionStreamProcessor"
+    },
+    "IndexFaceLambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:GetObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        {
+                          "Fn::GetAtt": [
+                            "BundlesBucket",
+                            "Arn"
+                          ]
+                        },
+                        "/",
+                        {
+                          "Ref": "ImageDestinationKeyPrefix"
+                        },
+                        "*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "rekognition:IndexFaces"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:rekognition",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "collection/",
+                              {
+                                "Ref": "CollectionIdPrefix"
+                              },
+                              "*"
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        ":",
+                        [
+                          "arn:aws:logs",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          "*"
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "PolicyName": {
+              "Fn::Join": [
+                "",
+                [
+                  "IndexFaceLambdaPolicy",
+                  {
+                    "Ref": "AWS::StackName"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "IndexFaceLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:invokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "IndexFaceLambda",
+            "Arn"
+          ]
+        },
+        "Principal": "s3.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "BundlesBucket",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "IndexFaceLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "LambdaFunctionS3Bucket"
+          },
+          "S3Key": {
+            "Ref": "LambdaFunctionS3Key"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "CollectionId": {
+              "Fn::GetAtt": [
+                "RekognitionCollection",
+                "Data"
+              ]
+            }
+          }
+        },
+        "Handler": "index.indexFacesLambda",
+        "Role": {
+          "Fn::GetAtt": [
+            "IndexFaceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs8.10",
+        "Timeout": 60
+      }
+    },
+    "CopyImages": {
+      "DependsOn": [
+        "IndexFaceLambda",
+        "BundlesBucket",
+        "RekognitionCollection",
+        "NotificationConfig"
+      ],
+      "Properties": {
+        "DestinationBucketArn": {
+          "Fn::GetAtt": [
+            "BundlesBucket",
+            "Arn"
+          ]
+        },
+        "Prefix": {
+          "Ref": "ImageDestinationKeyPrefix"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "SourceBucket": {
+          "Ref": "ImageSourceBucket"
+        },
+        "SourceKeyPrefix": {
+          "Ref": "ImageSourceKeyPrefix"
+        },
+        "TaskName": "CopyImages"
+      },
+      "Type": "Custom::CopyImages"
+    },
+    "VPCConfig": {
+      "Condition": "CreateRoboMakerResources",
+      "Properties": {
+        "AvailabilityZones": {
+          "Fn::GetAZs": ""
+        },
+        "CidrBlock": {
+          "Ref": "VpcCidrBlock"
+        },
+        "ServiceToken": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:lambda:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":function:",
+              {
+                "Ref": "LambdaFunction"
+              }
+            ]
+          ]
+        },
+        "SubnetMask": {
+          "Ref": "SubnetMask"
+        },
+        "TaskName": "VPCConfig"
+      },
+      "Type": "Custom::VPCConfig"
+    }
+  }
+}
+

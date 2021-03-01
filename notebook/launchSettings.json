@@ -1,0 +1,19 @@
+ {
+      "applicationId": "PersonDetection",
+      "bundleVersion": "5",
+      "cfTemplateName": "person-detection.template",
+      "cfStackName": "AWSRoboMakerPersonDetection",
+      "cfTotalNumberResources": "20",
+      "cfParameters": {
+          "SourceBucket": "{s3Bucket}",
+          "RobotAppSourceKey": "{s3KeyPrefix}/robot_ws.tar",
+          "SimAppSourceKey": "{s3KeyPrefix}/simulation_ws.tar",
+          "LambdaFunctionS3Bucket": "{s3Bucket}",
+          "LambdaFunctionS3Key": "{s3KeyPrefix}/person-detection-lambda.zip",
+          "SimulationSoftwareSuiteVersion": "{simulationSoftwareSuiteVersion}",
+          "ClientToken": "{uuid}",
+          "LaunchId": "{uuid}",
+          "ImageSourceBucket": "{s3Bucket}",
+          "ImageSourceKeyPrefix": "{s3KeyPrefix}/assets"
+      }
+  }

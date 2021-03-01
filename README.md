@@ -8,13 +8,17 @@ A collection of resources that I have used when talking about and showing AWS Ro
 
 ![IoTNorth](images/iot-north-presentation.png)
 
-### Blog Posts
+### Blog Posts and videos
 
 This is a collection of blog posts either authored by myself or by others that talk about and dive deep into some of the things I have mentioned during my presentation.
 
 * [Testing map generation at scale with 3D worlds from AWS WorldForge](https://aws-oss.beachgeek.co.uk/8p) - this post explores how you can get started with AWS WorldForge to generate multiple environments to better test your robotic applications. During my demos I use the code that this blog post shares.
-
 * [Escape from the maze by training a Reinforcement Learning model on AWS RoboMaker](https://aws-oss.beachgeek.co.uk/8q) - this post takes a look at reinforcement learning and how to build a model to help solve a maze problem.
+* [How to Start Robotics Testing in Simulation](https://aws-oss.beachgeek.co.uk/94) - after an introduction into ROS and its main architectural components, you will dive deep on how some of the tooling to build simulation worlds, how to get started with Robot simulation and some of the uses cases
+
+### ROS Tutorials
+
+* [ROS Introduction](https://aws-oss.beachgeek.co.uk/93)
 
 ### AWS RoboMaker Workshops
 
