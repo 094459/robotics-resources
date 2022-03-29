@@ -7,6 +7,7 @@ A collection of resources that I have used when talking about and showing AWS Ro
 ### Talks/Presentations
 
 ![IoTNorth](images/iot-north-presentation.png)
+![IoTNorthAI](images/iot-north-ai.png)
 
 ### Blog Posts and videos
 
