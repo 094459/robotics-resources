@@ -2,6 +2,9 @@
 
 ![banner](images/robomaker.jpg)
 
+
+# The links and resources linked are mostly deprecated now and will likely not work. I am leaving this repository for reference.
+
 A collection of resources that I have used when talking about and showing AWS RoboMaker, ROS and how to build modern robotics.
 
 ### Talks/Presentations
